@@ -41,7 +41,7 @@ public class DayBarView extends View {
         grid.setColor(GRID);
         grid.setStrokeWidth(2f * d);
         text.setColor(LABEL);
-        text.setTextSize(13 * d);
+        text.setTextSize(16 * d);
         text.setTextAlign(Paint.Align.LEFT);
         text.setFakeBoldText(true);
         nowLine.setColor(NOW);
@@ -50,14 +50,14 @@ public class DayBarView extends View {
 
     /** Висота смуги: 66dp клітинки + 20dp на підписи годин. */
     public static int heightDp() {
-        return 86;
+        return 98;
     }
 
     @Override protected void onDraw(Canvas c) {
         super.onDraw(c);
         int n = cells.isEmpty() ? 48 : cells.size();
         float w = getWidth() / (float) n;
-        float labelsH = 20 * d;
+        float labelsH = 26 * d;
         float h = getHeight() - labelsH;
 
         for (int i = 0; i < n; i++) {
