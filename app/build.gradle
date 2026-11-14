@@ -39,5 +39,4 @@ android {
 
 dependencies {
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
-    implementation 'com.wireguard.android:tunnel:1.0.20230706'
 }

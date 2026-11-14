@@ -40,23 +40,10 @@ import java.util.Locale;
  */
 public class MainActivity extends Activity {
 
-    private static final String URL_WG =
-            "http://10.66.66.1:8099/schedule.json";          // свіжі дані через WireGuard
     private static final String URL_JSON =
             "https://raw.githubusercontent.com/pragmatrans/poe-data/main/schedule.json";
     private static final long REFRESH_MS = 15 * 60 * 1000L;
 
-    /** Конфіг тунеля: ключ цього планшета, публічний ключ VPS, лише наша підсеть. */
-    private static final String WG_CFG =
-            "[Interface]\n"
-          + "PrivateKey = aBMWMuJFFDGvdveW9ioak8yReyiFYVaP2zra911TklQ=\n"
-          + "Address = 10.66.66.4/32\n"
-          + "[Peer]\n"
-          + "PublicKey = kgZi1fFbieuZlvvRhPuddFWC4p6V3/632eEdnuxbz3g=\n"
-          + "AllowedIPs = 10.66.66.0/24\n"
-          + "Endpoint = 13.140.215.168:51820\n"
-          + "PersistentKeepalive = 25\n";
-    private static final int REQ_VPN = 7;
 
     private SwipeRefreshLayout swipe;
     private LinearLayout root;      // заголовок
@@ -115,7 +102,6 @@ public class MainActivity extends Activity {
         blp.topMargin = dp(6);
         root.addView(body, blp);
 
-        ensureTunnel();
         load();
         handler.postDelayed(refresher, REFRESH_MS);
     }
@@ -125,31 +111,6 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    /** Просить дозвіл на VPN (один раз) і піднімає тунель. */
-    private void ensureTunnel() {
-        try {
-            android.content.Intent prep = android.net.VpnService.prepare(this);
-            if (prep != null) {
-                startActivityForResult(prep, REQ_VPN);
-            } else {
-                startTunnel();
-            }
-        } catch (Exception ignored) { }
-    }
-
-    private void startTunnel() {
-        try {
-            android.content.Intent i = new android.content.Intent(this, TunnelService.class);
-            i.putExtra("cfg", WG_CFG);
-            startService(i);
-        } catch (Exception ignored) { }
-    }
-
-    @Override protected void onActivityResult(int req, int res, android.content.Intent data) {
-        super.onActivityResult(req, res, data);
-        if (req == REQ_VPN && res == RESULT_OK) startTunnel();
-    }
-
     /** Ходить за готовим JSON і перемальовує. */
     private void load() {
         new Thread(new Runnable() {
@@ -157,15 +118,6 @@ public class MainActivity extends Activity {
                 String err = null;
                 String bodyText = null;
                 String source = null;
-                for (int attempt = 0; attempt < 3 && bodyText == null; attempt++) {
-                    try {
-                        bodyText = get(URL_WG, 4000);      // 1) тунель — свіжі дані
-                        source = "тунель";
-                    } catch (Exception e) {
-                        bodyText = null;
-                        try { Thread.sleep(1500); } catch (InterruptedException ignored) { }
-                    }
-                }
                 if (bodyText == null) {
                     try {
                         bodyText = get(URL_JSON, 15000);   // 2) запасний шлях — хмара
