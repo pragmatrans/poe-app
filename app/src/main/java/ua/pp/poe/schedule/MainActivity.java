@@ -9,6 +9,7 @@ import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -19,6 +20,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import android.util.Base64;
+import java.util.zip.GZIPInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -41,6 +46,11 @@ import java.util.Locale;
  */
 public class MainActivity extends Activity {
 
+    // Канал «дай свіжий графік зараз»: публічний ntfy, без портів і без VPN.
+    private static final String NTFY_ASK = "https://ntfy.sh/poe-q-610a4d134e3f8df4df";
+    private static final String NTFY_ANS = "https://ntfy.sh/poe-a-f73318596131457f66/json?poll=1&since=180s";
+    private static final String NTFY_TOK = "7722020de052af64d8cd7615";
+
     private static final String URL_JSON =
             "https://raw.githubusercontent.com/pragmatrans/poe-data/main/schedule.json";
     private static final long REFRESH_MS = 15 * 60 * 1000L;
@@ -50,6 +60,8 @@ public class MainActivity extends Activity {
     private LinearLayout root;      // заголовок
     private LinearLayout body;      // смуги + шкала
     private TextView status;
+    private Button tickBtn;
+    private volatile boolean nudging;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private final Runnable refresher = new Runnable() {
@@ -93,6 +105,17 @@ public class MainActivity extends Activity {
         });
         top.addView(status, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        tickBtn = new Button(this);
+        tickBtn.setText("Оновити з ПОЕ");
+        tickBtn.setAllCaps(false);
+        tickBtn.setTextSize(14);
+        tickBtn.setPadding(dp(10), dp(4), dp(10), dp(4));
+        tickBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { nudge(); }
+        });
+        top.addView(tickBtn, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         root.addView(top);
 
@@ -138,6 +161,77 @@ public class MainActivity extends Activity {
                 });
             }
         }).start();
+    }
+
+    /** «Тікнути ПОЕ»: кидає команду в ntfy, чекає свіжий JSON у відповіді. */
+    private void nudge() {
+        if (nudging) return;
+        nudging = true;
+        tickBtn.setEnabled(false);
+        tickBtn.setText("питаю…");
+        status.setTextColor(Color.parseColor("#8A94A6"));
+        status.setText("запит до ПОЕ…");
+
+        new Thread(new Runnable() {
+            @Override public void run() {
+                final String req = Long.toHexString(System.currentTimeMillis()).substring(4)
+                        + Integer.toHexString((int) (Math.random() * 0xffff));
+                String err = null, body = null;
+                try {
+                    HttpURLConnection c = (HttpURLConnection) new URL(NTFY_ASK).openConnection();
+                    c.setRequestMethod("POST");
+                    c.setDoOutput(true);
+                    c.setConnectTimeout(10000);
+                    c.setReadTimeout(10000);
+                    c.getOutputStream().write(("tick " + NTFY_TOK + " " + req).getBytes("UTF-8"));
+                    if (c.getResponseCode() >= 400) throw new Exception("HTTP " + c.getResponseCode());
+
+                    long until = System.currentTimeMillis() + 30000;
+                    while (System.currentTimeMillis() < until && body == null) {
+                        Thread.sleep(1200);
+                        String dump = get(NTFY_ANS, 12000);
+                        for (String line : dump.split("\n")) {
+                            if (!line.contains("\"title\":\"" + req + "\"")) continue;
+                            JSONObject m = new JSONObject(line);
+                            String payload = m.optString("message", "");
+                            if (payload.isEmpty()) continue;
+                            String text = ungzip64(payload);
+                            body = text.startsWith("ERR ") ? null : text;
+                            if (body == null) throw new Exception(text.substring(4));
+                            break;
+                        }
+                    }
+                    if (body == null) throw new Exception("немає відповіді");
+                } catch (Exception e) {
+                    err = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                }
+                final String fErr = err, fBody = body;
+                handler.post(new Runnable() {
+                    @Override public void run() {
+                        nudging = false;
+                        tickBtn.setEnabled(true);
+                        tickBtn.setText("Оновити з ПОЕ");
+                        if (fErr != null) {
+                            showError(fErr);
+                        } else if (!render(fBody, "ПОЕ")) {
+                            showError("JSON не розібрався");
+                        }
+                    }
+                });
+            }
+        }).start();
+    }
+
+    /** base64 → gzip → текст. */
+    private String ungzip64(String b64) throws Exception {
+        byte[] raw = Base64.decode(b64, Base64.DEFAULT);
+        GZIPInputStream gz = new GZIPInputStream(new ByteArrayInputStream(raw));
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = gz.read(buf)) > 0) out.write(buf, 0, n);
+        gz.close();
+        return out.toString("UTF-8");
     }
 
     /** Один GET із таймаутом; кидає виняток, якщо не 200. */
@@ -211,7 +305,7 @@ public class MainActivity extends Activity {
 
     /** Рядок: смуга на всю ширину, підпис черги намальований усередині. */
     private View row(String q, List<Integer> cells, String date, boolean first, int barH) {
-        DayBarView bar = new DayBarView(this, cells, isToday(date), "Ч-" + q);
+        DayBarView bar = new DayBarView(this, cells, isToday(date), q);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, barH);
         lp.topMargin = first ? 0 : dp(8);
