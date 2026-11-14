@@ -196,7 +196,7 @@ public class MainActivity extends Activity {
             });
 
             // лишаємо заголовок і статус, решту перемальовуємо
-            while (root.getChildCount() > 2) root.removeViewAt(2);
+            while (root.getChildCount() > 3) root.removeViewAt(3);  // 0=заголовок, 1=легенда, 2=статус
 
             JSONObject queues = data.optJSONObject("queues");
             if (queues == null) return false;
