@@ -22,15 +22,21 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Графік відключень poe.pl.ua, перемальований під екран планшета.
  *
- * Дані беремо не з сайту (він ріже не-українські IP і домашню адресу), а з JSON, який публікує
- * наш вартовий на UA VPS. Тому ні проксі, ні VPN, ні браузера тут немає.
+ * Дані — не з сайту (він ріже не-українські IP і домашню адресу), а з JSON, який віддає наш
+ * вартовий на UA VPS: спершу через WireGuard (свіжі), запасним шляхом — опублікований у хмарі.
+ *
+ * Екран: заголовок з датою і часом даних, далі по одній смузі на чергу — підпис черги
+ * всередині перших клітинок, шкала годин одна під нижньою смугою. Все влізає без прокрутки.
  */
 public class MainActivity extends Activity {
 
@@ -39,9 +45,11 @@ public class MainActivity extends Activity {
     private static final String URL_JSON =
             "https://raw.githubusercontent.com/pragmatrans/poe-data/main/schedule.json";
     private static final long REFRESH_MS = 15 * 60 * 1000L;
+    private static final int TAG_W_DP = 92;
 
     private SwipeRefreshLayout swipe;
-    private LinearLayout root;
+    private LinearLayout root;      // заголовок
+    private LinearLayout body;      // смуги + шкала
     private TextView status;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -66,20 +74,28 @@ public class MainActivity extends Activity {
 
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        int pad = dp(14);
+        int pad = dp(12);
         root.setPadding(pad, pad, pad, pad);
         scroll.addView(root, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         swipe.addView(scroll);
         setContentView(swipe);
 
-        title("Відключення · poe.pl.ua");
-        legend();
         status = new TextView(this);
-        status.setTextColor(Color.parseColor("#8A94A6"));
-        status.setTextSize(13);
-        status.setGravity(Gravity.START);
+        status.setTextColor(Color.parseColor("#E8ECF1"));
+        status.setTextSize(19);
+        status.setTypeface(Typeface.DEFAULT_BOLD);
+        status.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { load(); }
+        });
         root.addView(status);
+
+        body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        blp.topMargin = dp(6);
+        root.addView(body, blp);
 
         load();
         handler.postDelayed(refresher, REFRESH_MS);
@@ -92,31 +108,27 @@ public class MainActivity extends Activity {
 
     /** Ходить за готовим JSON і перемальовує. */
     private void load() {
-        status.setText("оновлюю…");
-        status.setOnClickListener(null);
         new Thread(new Runnable() {
             @Override public void run() {
                 String err = null;
-                String body = null;
+                String bodyText = null;
                 String source = null;
-                // 1) тунель — свіжі дані (вартовий фетчить сайт у момент запиту)
                 try {
-                    body = get(URL_WG, 5000);
+                    bodyText = get(URL_WG, 5000);          // 1) тунель — свіжі дані
                     source = "тунель";
                 } catch (Exception e) {
-                    body = null;
+                    bodyText = null;
                 }
-                // 2) запасний шлях — опублікований JSON (працює без тунеля, але з затримкою)
-                if (body == null) {
+                if (bodyText == null) {
                     try {
-                        body = get(URL_JSON, 15000);
+                        bodyText = get(URL_JSON, 15000);   // 2) запасний шлях — хмара
                         source = "хмара";
                     } catch (Exception e) {
-                        err = e.getClass().getSimpleName() + ": " + e.getMessage();
+                        err = e.getClass().getSimpleName();
                     }
                 }
                 final String fErr = err;
-                final String fBody = body;
+                final String fBody = bodyText;
                 final String fSrc = source;
                 handler.post(new Runnable() {
                     @Override public void run() {
@@ -143,166 +155,132 @@ public class MainActivity extends Activity {
         return sb.toString();
     }
 
-
-    /** Легенда кольорів великим шрифтом — щоб не вгадувати відтінки. */
-    private void legend() {
-        TextView v = new TextView(this);
-        String t = "■ є електрика    ■ нема    ■ перемикання";
-        android.text.SpannableString sp = new android.text.SpannableString(t);
-        sp.setSpan(new android.text.style.ForegroundColorSpan(Color.parseColor("#2FA360")), 0, 1, 0);
-        int i2 = t.indexOf('■', 1), i3 = t.indexOf('■', i2 + 1);
-        sp.setSpan(new android.text.style.ForegroundColorSpan(Color.parseColor("#D24B45")), i2, i2 + 1, 0);
-        sp.setSpan(new android.text.style.ForegroundColorSpan(Color.parseColor("#E0A32E")), i3, i3 + 1, 0);
-        v.setText(sp);
-        v.setTextSize(15);
-        v.setPadding(0, dp(6), 0, dp(2));
-        root.addView(v);
-    }
-
     private void stopSpinner() {
         if (swipe != null && swipe.isRefreshing()) swipe.setRefreshing(false);
     }
 
-    /** Чи це сьогоднішня дата (формат dd-MM-yyyy). */
-    private boolean isToday(String day) {
-        String t = new java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.US)
-                .format(new java.util.Date());
-        return t.equals(day);
-    }
-
     private void showError(String msg) {
         stopSpinner();
-        status.setText("не вдалось оновити — " + msg + "\nторкнись, щоб спробувати ще");
         status.setTextColor(Color.parseColor("#FF8A80"));
-        status.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { load(); }
-        });
+        status.setText("немає даних · " + msg);
     }
 
-    private boolean render(String body, String source) {
+    private boolean render(String json, String source) {
         try {
-            JSONObject data = new JSONObject(body);
+            JSONObject data = new JSONObject(json);
             String updated = data.optString("updated", "?");
-            long age = data.optLong("age_sec", -1);
-            String ageTxt = age < 0 ? "" :
-                    (age < 90 ? "  ·  дані щойно" : "  ·  дані " + (age / 60) + " хв тому");
-            stopSpinner();
-            status.setTextColor(Color.parseColor("#8A94A6"));
-            status.setText("оновлено: " + updated + ageTxt
-                    + "  ·  " + (source == null ? "?" : source)
-                    + "  ·  торкнись, щоб оновити");
-            status.setOnClickListener(new View.OnClickListener() {
-                @Override public void onClick(View v) { load(); }
-            });
+            String date = pickDate(data);
 
-            // лишаємо заголовок і статус, решту перемальовуємо
-            while (root.getChildCount() > 3) root.removeViewAt(3);  // 0=заголовок, 1=легенда, 2=статус
+            stopSpinner();
+            status.setTextColor(Color.parseColor("#E8ECF1"));
+            status.setText(humanDayMonth(date) + "  ·  дані " + clock(updated)
+                    + (source == null ? "" : "  ·  " + source));
+
+            body.removeAllViews();
 
             JSONObject queues = data.optJSONObject("queues");
             if (queues == null) return false;
             Iterator<String> it = queues.keys();
+            boolean first = true;
             while (it.hasNext()) {
                 String q = it.next();
                 JSONObject entry = queues.getJSONObject(q);
-                LinearLayout card = new LinearLayout(MainActivity.this);
-                card.setOrientation(LinearLayout.VERTICAL);
-                card.setBackgroundColor(Color.parseColor("#1B1F24"));
-                card.setPadding(dp(10), dp(10), dp(10), dp(10));
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                lp.bottomMargin = dp(12);
-                card.setLayoutParams(lp);
-
-                TextView head = new TextView(MainActivity.this);
-                head.setTextSize(20);
-                head.setTypeface(Typeface.DEFAULT_BOLD);
-                head.setTextColor(Color.parseColor("#E8ECF1"));
-                String now = entry.optString("now", "");
-                head.setText("Черга " + q + (now.isEmpty() ? "" : "   ·   " + now));
-                card.addView(head);
-
                 JSONObject days = entry.optJSONObject("days");
-                if (days != null) {
-                    Iterator<String> dit = days.keys();
-                    while (dit.hasNext()) {
-                        String day = dit.next();
-                        JSONObject d = days.getJSONObject(day);
-                        card.addView(dayBlock(day, d));
-                    }
-                }
-                root.addView(card);
+                if (days == null || !days.has(date)) continue;
+
+                List<Integer> cells = new ArrayList<>();
+                JSONArray arr = days.getJSONObject(date).optJSONArray("cells");
+                if (arr != null) for (int i = 0; i < arr.length(); i++) cells.add(arr.optInt(i));
+
+                body.addView(row(q, cells, date, first));
+                first = false;
             }
+            // шкала годин одна, під останньою смугою
+            body.addView(axis());
             return true;
         } catch (Exception e) {
             return false;
         }
     }
 
-    /** Один день: заголовок, смуга 48 півгодин, підпис вікон. */
-    private View dayBlock(String day, JSONObject d) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+    /** Рядок: підпис черги в перших клітинках + смуга на решту ширини. */
+    private View row(String q, List<Integer> cells, String date, boolean first) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(8);
-        box.setLayoutParams(lp);
+        rlp.topMargin = first ? 0 : dp(8);
+        row.setLayoutParams(rlp);
 
-        TextView label = new TextView(this);
-        label.setTextSize(13);
-        label.setTextColor(Color.parseColor("#C7CFDB"));
-        label.setText(humanDate(day));
-        box.addView(label);
+        TextView tag = new TextView(this);
+        tag.setText("Ч-" + q);
+        tag.setTextSize(21);
+        tag.setTypeface(Typeface.DEFAULT_BOLD);
+        tag.setTextColor(Color.parseColor("#E8ECF1"));
+        tag.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        row.addView(tag, new LinearLayout.LayoutParams(dp(TAG_W_DP),
+                ViewGroup.LayoutParams.MATCH_PARENT));
 
-        List<Integer> cells = new ArrayList<>();
-        JSONArray arr = d.optJSONArray("cells");
-        if (arr != null) for (int i = 0; i < arr.length(); i++) cells.add(arr.optInt(i));
-        DayBarView bar = new DayBarView(this, cells, isToday(day));
-        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(DayBarView.heightDp()));
-        blp.topMargin = dp(4);
-        bar.setLayoutParams(blp);
-        box.addView(bar);
-
-        StringBuilder sb = new StringBuilder();
-        JSONArray off = d.optJSONArray("off");
-        if (off != null && off.length() > 0) {
-            sb.append("нема: ");
-            for (int i = 0; i < off.length(); i++) {
-                if (i > 0) sb.append(", ");
-                sb.append(off.optString(i));
-            }
-        } else {
-            sb.append("нема: без відключень");
-        }
-        TextView windows = new TextView(this);
-        windows.setTextSize(13);
-        windows.setTextColor(Color.parseColor("#8A94A6"));
-        windows.setText(sb.toString());
-        box.addView(windows);
-        return box;
+        DayBarView bar = new DayBarView(this, cells, isToday(date));
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(0, dp(96), 1f);
+        row.addView(bar, blp);
+        return row;
     }
 
-    private String humanDate(String d) {
-        String[] p = d.split("-");
-        if (p.length != 3) return d;
+    /** Шкала: підписи годин і рисочки, з відступом під колонку черг. */
+    private View axis() {
+        AxisView a = new AxisView(this);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(26));
+        lp.leftMargin = dp(TAG_W_DP);
+        lp.topMargin = dp(2);
+        a.setLayoutParams(lp);
+        return a;
+    }
+
+    /** Яку дату показувати: сьогоднішню, інакше найближчу з наявних. */
+    private String pickDate(JSONObject data) {
+        String today = new SimpleDateFormat("dd-MM-yyyy", Locale.US).format(new Date());
+        JSONObject queues = data.optJSONObject("queues");
+        List<String> seen = new ArrayList<>();
+        if (queues != null) {
+            Iterator<String> q = queues.keys();
+            while (q.hasNext()) {
+                JSONObject days = queues.optJSONObject(q.next()).optJSONObject("days");
+                if (days == null) continue;
+                Iterator<String> d = days.keys();
+                while (d.hasNext()) {
+                    String key = d.next();
+                    if (!seen.contains(key)) seen.add(key);
+                }
+            }
+        }
+        if (seen.contains(today)) return today;
+        return seen.isEmpty() ? today : seen.get(seen.size() - 1);
+    }
+
+    /** "14 листопада 2026 13:17" → "14 листопада"; невідомий формат — як є. */
+    private String humanDayMonth(String day) {
+        String[] p = day.split("-");
         String[] mm = {"", "січня", "лютого", "березня", "квітня", "травня", "червня",
                 "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"};
         try {
-            int m = Integer.parseInt(p[1]);
-            return Integer.parseInt(p[0]) + " " + mm[m] + " " + p[2];
+            return Integer.parseInt(p[0]) + " " + mm[Integer.parseInt(p[1])];
         } catch (Exception e) {
-            return d;
+            return day;
         }
     }
 
-    private void title(String t) {
-        TextView v = new TextView(this);
-        v.setText(t);
-        v.setTextSize(22);
-        v.setTypeface(Typeface.DEFAULT_BOLD);
-        v.setTextColor(Color.parseColor("#E8ECF1"));
-        v.setPadding(0, 0, 0, dp(4));
-        root.addView(v);
+    /** З "14 листопада 2026 13:17" витягує "13:17". */
+    private String clock(String s) {
+        int i = s.lastIndexOf(' ');
+        return i > 0 ? s.substring(i + 1) : s;
+    }
+
+    private boolean isToday(String day) {
+        String t = new SimpleDateFormat("dd-MM-yyyy", Locale.US).format(new Date());
+        return t.equals(day);
     }
 
     private int dp(int v) {
