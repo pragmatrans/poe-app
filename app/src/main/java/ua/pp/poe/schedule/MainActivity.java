@@ -80,6 +80,10 @@ public class MainActivity extends Activity {
         swipe.addView(scroll);
         setContentView(swipe);
 
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+
         status = new TextView(this);
         status.setTextColor(Color.parseColor("#E8ECF1"));
         status.setTextSize(19);
@@ -87,7 +91,26 @@ public class MainActivity extends Activity {
         status.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { load(); }
         });
-        root.addView(status);
+        top.addView(status, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView site = new TextView(this);
+        site.setText("сайт ↗");
+        site.setTextSize(16);
+        site.setTypeface(Typeface.DEFAULT_BOLD);
+        site.setTextColor(Color.parseColor("#8AB4F8"));
+        site.setPadding(dp(12), dp(6), dp(2), dp(6));
+        site.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                try {
+                    startActivity(new android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://www.poe.pl.ua/customs")));
+                } catch (Exception ignored) { }
+            }
+        });
+        top.addView(site);
+        root.addView(top);
 
         body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -217,7 +240,7 @@ public class MainActivity extends Activity {
     private View axis() {
         AxisView a = new AxisView(this);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(26));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(30));
         lp.topMargin = dp(2);
         a.setLayoutParams(lp);
         return a;
@@ -271,10 +294,10 @@ public class MainActivity extends Activity {
     /** Висота смуги: ділимо доступну висоту екрана на кількість черг (не менше 92dp). */
     private int barHeight(int n) {
         int screen = getResources().getDisplayMetrics().heightPixels;
-        int fixed = dp(24 + 38 + 30);            // відступи + заголовок + шкала
+        int fixed = dp(24 + 46 + 34 + 12);       // відступи + заголовок + шкала + люфт
         int gaps = dp(8) * Math.max(0, n - 1);
         int h = (screen - fixed - gaps) / Math.max(1, n);
-        return Math.max(dp(92), h);
+        return Math.max(dp(84), h);
     }
 
     private int dp(int v) {
