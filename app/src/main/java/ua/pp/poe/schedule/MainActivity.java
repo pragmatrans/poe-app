@@ -13,6 +13,8 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -38,6 +40,7 @@ public class MainActivity extends Activity {
             "https://raw.githubusercontent.com/pragmatrans/poe-data/main/schedule.json";
     private static final long REFRESH_MS = 15 * 60 * 1000L;
 
+    private SwipeRefreshLayout swipe;
     private LinearLayout root;
     private TextView status;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -52,6 +55,11 @@ public class MainActivity extends Activity {
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
 
+        swipe = new SwipeRefreshLayout(this);
+        swipe.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override public void onRefresh() { load(); }
+        });
+
         ScrollView scroll = new ScrollView(this);
         scroll.setBackgroundColor(Color.parseColor("#121417"));
         scroll.setFillViewport(true);
@@ -62,9 +70,11 @@ public class MainActivity extends Activity {
         root.setPadding(pad, pad, pad, pad);
         scroll.addView(root, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        setContentView(scroll);
+        swipe.addView(scroll);
+        setContentView(swipe);
 
         title("Відключення · poe.pl.ua");
+        legend();
         status = new TextView(this);
         status.setTextColor(Color.parseColor("#8A94A6"));
         status.setTextSize(13);
@@ -133,7 +143,35 @@ public class MainActivity extends Activity {
         return sb.toString();
     }
 
+
+    /** Легенда кольорів великим шрифтом — щоб не вгадувати відтінки. */
+    private void legend() {
+        TextView v = new TextView(this);
+        String t = "■ є електрика    ■ нема    ■ перемикання";
+        android.text.SpannableString sp = new android.text.SpannableString(t);
+        sp.setSpan(new android.text.style.ForegroundColorSpan(Color.parseColor("#2FA360")), 0, 1, 0);
+        int i2 = t.indexOf('■', 1), i3 = t.indexOf('■', i2 + 1);
+        sp.setSpan(new android.text.style.ForegroundColorSpan(Color.parseColor("#D24B45")), i2, i2 + 1, 0);
+        sp.setSpan(new android.text.style.ForegroundColorSpan(Color.parseColor("#E0A32E")), i3, i3 + 1, 0);
+        v.setText(sp);
+        v.setTextSize(15);
+        v.setPadding(0, dp(6), 0, dp(2));
+        root.addView(v);
+    }
+
+    private void stopSpinner() {
+        if (swipe != null && swipe.isRefreshing()) swipe.setRefreshing(false);
+    }
+
+    /** Чи це сьогоднішня дата (формат dd-MM-yyyy). */
+    private boolean isToday(String day) {
+        String t = new java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.US)
+                .format(new java.util.Date());
+        return t.equals(day);
+    }
+
     private void showError(String msg) {
+        stopSpinner();
         status.setText("не вдалось оновити — " + msg + "\nторкнись, щоб спробувати ще");
         status.setTextColor(Color.parseColor("#FF8A80"));
         status.setOnClickListener(new View.OnClickListener() {
@@ -148,6 +186,7 @@ public class MainActivity extends Activity {
             long age = data.optLong("age_sec", -1);
             String ageTxt = age < 0 ? "" :
                     (age < 90 ? "  ·  дані щойно" : "  ·  дані " + (age / 60) + " хв тому");
+            stopSpinner();
             status.setTextColor(Color.parseColor("#8A94A6"));
             status.setText("оновлено: " + updated + ageTxt
                     + "  ·  " + (source == null ? "?" : source)
@@ -217,9 +256,9 @@ public class MainActivity extends Activity {
         List<Integer> cells = new ArrayList<>();
         JSONArray arr = d.optJSONArray("cells");
         if (arr != null) for (int i = 0; i < arr.length(); i++) cells.add(arr.optInt(i));
-        DayBarView bar = new DayBarView(this, cells);
+        DayBarView bar = new DayBarView(this, cells, isToday(day));
         LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(DayBarView.heightDp()));
         blp.topMargin = dp(4);
         bar.setLayoutParams(blp);
         box.addView(bar);
