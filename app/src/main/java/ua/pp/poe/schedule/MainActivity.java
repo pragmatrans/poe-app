@@ -268,9 +268,10 @@ public class MainActivity extends Activity {
             stopSpinner();
             status.setTextColor(Color.parseColor("#E8ECF1"));
             String head = humanDayMonth(dates.get(0));
-            if (dates.size() > 1) head += " + " + humanDayMonth(dates.get(1));
-            status.setText(head + "  ·  дані " + clock(updated)
-                    + (source == null ? "" : "  ·  " + source));
+            boolean twoDays = dates.size() > 1;
+            if (twoDays) head += " + " + humanDayMonth(dates.get(1));
+            else head += "  ·  дані " + clock(updated);
+            status.setText(head + (source == null ? "" : "  ·  " + source));
 
             body.removeAllViews();
 
@@ -282,7 +283,7 @@ public class MainActivity extends Activity {
 
             boolean multi = dates.size() > 1;
             for (String date : dates) {
-                if (multi) body.addView(dayLabel(date));
+                if (multi) body.addView(dayLabel(date, stampFor(queues, date)));
                 boolean first = true;
                 Iterator<String> it = queues.keys();
                 while (it.hasNext()) {
@@ -348,10 +349,23 @@ public class MainActivity extends Activity {
         return out.size() > 2 ? out.subList(0, 2) : out;
     }
 
-    /** Підпис групи днів, коли показуємо два дні. */
-    private View dayLabel(String date) {
+    /** Штамп «коли сайт оновив цю добу» — беремо з першої черги, де він є. */
+    private String stampFor(JSONObject queues, String date) {
+        Iterator<String> it = queues.keys();
+        while (it.hasNext()) {
+            JSONObject d = queues.optJSONObject(it.next());
+            JSONObject days = d == null ? null : d.optJSONObject("days");
+            JSONObject day = days == null ? null : days.optJSONObject(date);
+            String u = day == null ? null : day.optString("updated", null);
+            if (u != null && !u.isEmpty()) return u;
+        }
+        return null;
+    }
+
+    /** Підпис групи днів: дата + свій штамп, коли показуємо два дні. */
+    private View dayLabel(String date, String stamp) {
         TextView v = new TextView(this);
-        v.setText(humanDayMonth(date));
+        v.setText(humanDayMonth(date) + (stamp == null ? "" : "  ·  дані " + stamp));
         v.setTextSize(13);
         v.setTextColor(Color.parseColor("#8A94A6"));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
@@ -375,6 +389,7 @@ public class MainActivity extends Activity {
 
     /** З "14 листопада 2026 13:17" витягує "13:17". */
     private String clock(String s) {
+        if (s == null || s.isEmpty()) return "?";
         int i = s.lastIndexOf(' ');
         return i > 0 ? s.substring(i + 1) : s;
     }
