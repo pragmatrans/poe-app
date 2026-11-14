@@ -201,9 +201,8 @@ public class MainActivity extends Activity {
                     body.addView(row(q, cells, date, first, barH));
                     first = false;
                 }
+                body.addView(axis());     // своя шкала під кожною групою днів
             }
-            // шкала годин одна, під останньою смугою
-            body.addView(axis());
             return true;
         } catch (Exception e) {
             return false;
@@ -295,7 +294,7 @@ public class MainActivity extends Activity {
     /** Висота смуги: ділимо доступну висоту екрана на кількість черг (не менше 92dp). */
     private int barHeight(int n, int dayGroups) {
         int screen = getResources().getDisplayMetrics().heightPixels;
-        int fixed = dp(24 + 46 + 34 + 12) + dp(26) * Math.max(0, dayGroups - 1);  // + підписи днів
+        int fixed = dp(24 + 46 + 12) + dp(38) * dayGroups + dp(26) * Math.max(0, dayGroups - 1);
         int gaps = dp(8) * Math.max(0, n - 1);
         int h = (screen - fixed - gaps) / Math.max(1, n);
         return Math.max(n > 4 ? dp(52) : dp(84), h);
