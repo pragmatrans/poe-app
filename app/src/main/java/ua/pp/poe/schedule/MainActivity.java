@@ -365,7 +365,7 @@ public class MainActivity extends Activity {
     /** Підпис групи днів: дата + свій штамп, коли показуємо два дні. */
     private View dayLabel(String date, String stamp) {
         TextView v = new TextView(this);
-        v.setText(humanDayMonth(date) + (stamp == null ? "" : "  ·  дані " + stamp));
+        v.setText(humanDayMonth(date) + (stamp == null ? "" : "  ·  дані " + clock(stamp)));
         v.setTextSize(13);
         v.setTextColor(Color.parseColor("#8A94A6"));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
