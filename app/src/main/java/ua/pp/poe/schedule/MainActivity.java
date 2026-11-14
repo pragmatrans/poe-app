@@ -24,6 +24,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -168,32 +169,37 @@ public class MainActivity extends Activity {
         try {
             JSONObject data = new JSONObject(json);
             String updated = data.optString("updated", "?");
-            String date = pickDate(data);
+            List<String> dates = pickDates(data);
 
             stopSpinner();
             status.setTextColor(Color.parseColor("#E8ECF1"));
-            status.setText(humanDayMonth(date) + "  ·  дані " + clock(updated)
+            String head = humanDayMonth(dates.get(0));
+            if (dates.size() > 1) head += " + " + humanDayMonth(dates.get(1));
+            status.setText(head + "  ·  дані " + clock(updated)
                     + (source == null ? "" : "  ·  " + source));
 
             body.removeAllViews();
 
             JSONObject queues = data.optJSONObject("queues");
             if (queues == null) return false;
-            Iterator<String> it = queues.keys();
-            int n = queues.length();
-            boolean first = true;
-            while (it.hasNext()) {
-                String q = it.next();
-                JSONObject entry = queues.getJSONObject(q);
-                JSONObject days = entry.optJSONObject("days");
-                if (days == null || !days.has(date)) continue;
+            int rows = queues.length() * Math.max(1, dates.size());
+            int barH = barHeight(rows);
 
-                List<Integer> cells = new ArrayList<>();
-                JSONArray arr = days.getJSONObject(date).optJSONArray("cells");
-                if (arr != null) for (int i = 0; i < arr.length(); i++) cells.add(arr.optInt(i));
-
-                body.addView(row(q, cells, date, first, barHeight(n)));
-                first = false;
+            boolean multi = dates.size() > 1;
+            for (String date : dates) {
+                if (multi) body.addView(dayLabel(date));
+                boolean first = true;
+                Iterator<String> it = queues.keys();
+                while (it.hasNext()) {
+                    String q = it.next();
+                    JSONObject days = queues.getJSONObject(q).optJSONObject("days");
+                    if (days == null || !days.has(date)) continue;
+                    List<Integer> cells = new ArrayList<>();
+                    JSONArray arr = days.getJSONObject(date).optJSONArray("cells");
+                    if (arr != null) for (int i = 0; i < arr.length(); i++) cells.add(arr.optInt(i));
+                    body.addView(row(q, cells, date, first, barH));
+                    first = false;
+                }
             }
             // шкала годин одна, під останньою смугою
             body.addView(axis());
@@ -223,11 +229,11 @@ public class MainActivity extends Activity {
         return a;
     }
 
-    /** Яку дату показувати: сьогоднішню, інакше найближчу з наявних. */
-    private String pickDate(JSONObject data) {
+    /** Дати для показу: сьогодні+завтра, якщо є; інакше дві найновіші. Максимум дві. */
+    private List<String> pickDates(JSONObject data) {
         String today = new SimpleDateFormat("dd-MM-yyyy", Locale.US).format(new Date());
-        JSONObject queues = data.optJSONObject("queues");
         List<String> seen = new ArrayList<>();
+        JSONObject queues = data.optJSONObject("queues");
         if (queues != null) {
             Iterator<String> q = queues.keys();
             while (q.hasNext()) {
@@ -240,8 +246,25 @@ public class MainActivity extends Activity {
                 }
             }
         }
-        if (seen.contains(today)) return today;
-        return seen.isEmpty() ? today : seen.get(seen.size() - 1);
+        Collections.sort(seen);
+        List<String> out = new ArrayList<>();
+        if (seen.contains(today)) out.add(today);
+        for (String d : seen) if (!d.equals(today)) out.add(d);
+        if (out.isEmpty()) out.add(today);
+        return out.size() > 2 ? out.subList(0, 2) : out;
+    }
+
+    /** Підпис групи днів, коли показуємо два дні. */
+    private View dayLabel(String date) {
+        TextView v = new TextView(this);
+        v.setText(humanDayMonth(date));
+        v.setTextSize(13);
+        v.setTextColor(Color.parseColor("#8A94A6"));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(6);
+        v.setLayoutParams(lp);
+        return v;
     }
 
     /** "14 листопада 2026 13:17" → "14 листопада"; невідомий формат — як є. */
@@ -274,7 +297,7 @@ public class MainActivity extends Activity {
         int fixed = dp(24 + 46 + 34 + 12);       // відступи + заголовок + шкала + люфт
         int gaps = dp(8) * Math.max(0, n - 1);
         int h = (screen - fixed - gaps) / Math.max(1, n);
-        return Math.max(dp(84), h);
+        return Math.max(n > 4 ? dp(52) : dp(84), h);
     }
 
     private int dp(int v) {
