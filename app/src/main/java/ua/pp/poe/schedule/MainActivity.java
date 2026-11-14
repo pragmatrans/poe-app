@@ -182,8 +182,9 @@ public class MainActivity extends Activity {
 
             JSONObject queues = data.optJSONObject("queues");
             if (queues == null) return false;
-            int rows = queues.length() * Math.max(1, dates.size());
-            int barH = barHeight(rows);
+            int multiCount = dates.size();
+            int rows = queues.length() * Math.max(1, multiCount);
+            int barH = barHeight(rows, multiCount);
 
             boolean multi = dates.size() > 1;
             for (String date : dates) {
@@ -292,9 +293,9 @@ public class MainActivity extends Activity {
 
 
     /** Висота смуги: ділимо доступну висоту екрана на кількість черг (не менше 92dp). */
-    private int barHeight(int n) {
+    private int barHeight(int n, int dayGroups) {
         int screen = getResources().getDisplayMetrics().heightPixels;
-        int fixed = dp(24 + 46 + 34 + 12);       // відступи + заголовок + шкала + люфт
+        int fixed = dp(24 + 46 + 34 + 12) + dp(26) * Math.max(0, dayGroups - 1);  // + підписи днів
         int gaps = dp(8) * Math.max(0, n - 1);
         int h = (screen - fixed - gaps) / Math.max(1, n);
         return Math.max(n > 4 ? dp(52) : dp(84), h);
