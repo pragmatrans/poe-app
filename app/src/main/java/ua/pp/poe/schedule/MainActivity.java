@@ -94,22 +94,6 @@ public class MainActivity extends Activity {
         top.addView(status, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView site = new TextView(this);
-        site.setText("сайт ↗");
-        site.setTextSize(16);
-        site.setTypeface(Typeface.DEFAULT_BOLD);
-        site.setTextColor(Color.parseColor("#8AB4F8"));
-        site.setPadding(dp(12), dp(6), dp(2), dp(6));
-        site.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                try {
-                    startActivity(new android.content.Intent(
-                            android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse("https://www.poe.pl.ua/customs")));
-                } catch (Exception ignored) { }
-            }
-        });
-        top.addView(site);
         root.addView(top);
 
         body = new LinearLayout(this);

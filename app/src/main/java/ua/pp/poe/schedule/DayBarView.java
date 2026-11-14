@@ -84,8 +84,8 @@ public class DayBarView extends View {
         // підпис черги — просто в перших клітинках, поверх кольору (напівпрозора підкладка)
         if (label != null && !label.isEmpty()) {
             float boxW = Math.min(getWidth() * 0.22f, 3.2f * w * 2);
-            labelBg.setColor(Color.parseColor("#AA0B0D10"));
-            c.drawRect(0, 0, boxW, h, labelBg);
+            // без підкладки: біле на зеленому/червоному читається й так
+            labelPaint.setShadowLayer(4f * d, 0f, 1f * d, Color.parseColor("#CC000000"));
             Paint.FontMetrics fm = labelPaint.getFontMetrics();
             float ty = h / 2f - (fm.ascent + fm.descent) / 2f;
             c.drawText(label, 6 * d, ty, labelPaint);
