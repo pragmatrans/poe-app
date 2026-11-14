@@ -14,9 +14,20 @@ android {
         versionName "1.0"
     }
 
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('KS_FILE') ?: 'keystore.p12')
+            storePassword System.getenv('KS_PASS') ?: ''
+            keyAlias System.getenv('KEY_ALIAS') ?: 'poe'
+            keyPassword System.getenv('KEY_PASS') ?: ''
+            storeType 'PKCS12'
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
         }
     }
 

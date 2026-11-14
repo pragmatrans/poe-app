@@ -27,6 +27,9 @@ public class DayBarView extends View {
     private static final int NOW = Color.parseColor("#FFFFFF");
 
     private final List<Integer> cells;
+    private final Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint labelBg = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private String label;
     private final boolean today;
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hourLine = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -35,10 +38,18 @@ public class DayBarView extends View {
     private final RectF r = new RectF();
     private final float d;
 
-    public DayBarView(Context ctx, List<Integer> cells, boolean today) {
+    private static float d0(Context c) {
+        return c.getResources().getDisplayMetrics().density;
+    }
+
+    public DayBarView(Context ctx, List<Integer> cells, boolean today, String label) {
         super(ctx);
         this.cells = cells;
         this.today = today;
+        this.label = label;
+        labelPaint.setColor(Color.WHITE);
+        labelPaint.setTextSize(20 * d0(ctx));
+        labelPaint.setFakeBoldText(true);
         d = getResources().getDisplayMetrics().density;
         hourLine.setColor(HOUR_LINE);
         hourLine.setStrokeWidth(2.5f * d);
@@ -69,6 +80,15 @@ public class DayBarView extends View {
         for (int hour = 0; hour <= 24; hour++) {
             float x = hour * 2 * w;
             c.drawLine(x, 0, x, h, hourLine);
+        }
+        // підпис черги — просто в перших клітинках, поверх кольору (напівпрозора підкладка)
+        if (label != null && !label.isEmpty()) {
+            float boxW = Math.min(getWidth() * 0.22f, 3.2f * w * 2);
+            labelBg.setColor(Color.parseColor("#AA0B0D10"));
+            c.drawRect(0, 0, boxW, h, labelBg);
+            Paint.FontMetrics fm = labelPaint.getFontMetrics();
+            float ty = h / 2f - (fm.ascent + fm.descent) / 2f;
+            c.drawText(label, 6 * d, ty, labelPaint);
         }
         if (today) {
             Calendar cal = Calendar.getInstance();

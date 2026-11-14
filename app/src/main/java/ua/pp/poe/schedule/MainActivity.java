@@ -45,7 +45,6 @@ public class MainActivity extends Activity {
     private static final String URL_JSON =
             "https://raw.githubusercontent.com/pragmatrans/poe-data/main/schedule.json";
     private static final long REFRESH_MS = 15 * 60 * 1000L;
-    private static final int TAG_W_DP = 92;
 
     private SwipeRefreshLayout swipe;
     private LinearLayout root;      // заголовок
@@ -204,29 +203,14 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Рядок: підпис черги в перших клітинках + смуга на решту ширини. */
+    /** Рядок: смуга на всю ширину, підпис черги намальований усередині. */
     private View row(String q, List<Integer> cells, String date, boolean first, int barH) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        rlp.topMargin = first ? 0 : dp(8);
-        row.setLayoutParams(rlp);
-
-        TextView tag = new TextView(this);
-        tag.setText("Ч-" + q);
-        tag.setTextSize(21);
-        tag.setTypeface(Typeface.DEFAULT_BOLD);
-        tag.setTextColor(Color.parseColor("#E8ECF1"));
-        tag.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        row.addView(tag, new LinearLayout.LayoutParams(dp(TAG_W_DP),
-                ViewGroup.LayoutParams.MATCH_PARENT));
-
-        DayBarView bar = new DayBarView(this, cells, isToday(date));
-        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(0, barH, 1f);
-        row.addView(bar, blp);
-        return row;
+        DayBarView bar = new DayBarView(this, cells, isToday(date), "Ч-" + q);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, barH);
+        lp.topMargin = first ? 0 : dp(8);
+        bar.setLayoutParams(lp);
+        return bar;
     }
 
     /** Шкала: підписи годин і рисочки, з відступом під колонку черг. */
@@ -234,7 +218,6 @@ public class MainActivity extends Activity {
         AxisView a = new AxisView(this);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(26));
-        lp.leftMargin = dp(TAG_W_DP);
         lp.topMargin = dp(2);
         a.setLayoutParams(lp);
         return a;
