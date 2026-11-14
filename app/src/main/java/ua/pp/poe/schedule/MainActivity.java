@@ -32,6 +32,8 @@ import java.util.List;
  */
 public class MainActivity extends Activity {
 
+    private static final String URL_WG =
+            "http://10.66.66.1:8099/schedule.json";          // свіжі дані через WireGuard
     private static final String URL_JSON =
             "https://raw.githubusercontent.com/pragmatrans/poe-data/main/schedule.json";
     private static final long REFRESH_MS = 15 * 60 * 1000L;
@@ -86,31 +88,49 @@ public class MainActivity extends Activity {
             @Override public void run() {
                 String err = null;
                 String body = null;
+                String source = null;
+                // 1) тунель — свіжі дані (вартовий фетчить сайт у момент запиту)
                 try {
-                    HttpURLConnection c = (HttpURLConnection) new URL(URL_JSON).openConnection();
-                    c.setConnectTimeout(12000);
-                    c.setReadTimeout(20000);
-                    c.setRequestProperty("Cache-Control", "no-cache");
-                    BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = r.readLine()) != null) sb.append(line).append('\n');
-                    r.close();
-                    if (c.getResponseCode() != 200) err = "сервер віддав " + c.getResponseCode();
-                    else body = sb.toString();
+                    body = get(URL_WG, 5000);
+                    source = "тунель";
                 } catch (Exception e) {
-                    err = e.getClass().getSimpleName() + ": " + e.getMessage();
+                    body = null;
+                }
+                // 2) запасний шлях — опублікований JSON (працює без тунеля, але з затримкою)
+                if (body == null) {
+                    try {
+                        body = get(URL_JSON, 15000);
+                        source = "хмара";
+                    } catch (Exception e) {
+                        err = e.getClass().getSimpleName() + ": " + e.getMessage();
+                    }
                 }
                 final String fErr = err;
                 final String fBody = body;
+                final String fSrc = source;
                 handler.post(new Runnable() {
                     @Override public void run() {
                         if (fErr != null) showError(fErr);
-                        else if (!render(fBody)) showError("JSON не розібрався");
+                        else if (!render(fBody, fSrc)) showError("JSON не розібрався");
                     }
                 });
             }
         }).start();
+    }
+
+    /** Один GET із таймаутом; кидає виняток, якщо не 200. */
+    private String get(String url, int timeoutMs) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(timeoutMs);
+        c.setReadTimeout(timeoutMs + 8000);
+        c.setRequestProperty("Cache-Control", "no-cache");
+        BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = r.readLine()) != null) sb.append(line).append('\n');
+        r.close();
+        if (c.getResponseCode() != 200) throw new Exception("HTTP " + c.getResponseCode());
+        return sb.toString();
     }
 
     private void showError(String msg) {
@@ -121,12 +141,17 @@ public class MainActivity extends Activity {
         });
     }
 
-    private boolean render(String body) {
+    private boolean render(String body, String source) {
         try {
             JSONObject data = new JSONObject(body);
             String updated = data.optString("updated", "?");
+            long age = data.optLong("age_sec", -1);
+            String ageTxt = age < 0 ? "" :
+                    (age < 90 ? "  ·  дані щойно" : "  ·  дані " + (age / 60) + " хв тому");
             status.setTextColor(Color.parseColor("#8A94A6"));
-            status.setText("оновлено: " + updated + "  ·  торкнись, щоб оновити");
+            status.setText("оновлено: " + updated + ageTxt
+                    + "  ·  " + (source == null ? "?" : source)
+                    + "  ·  торкнись, щоб оновити");
             status.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) { load(); }
             });
