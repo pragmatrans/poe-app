@@ -181,6 +181,7 @@ public class MainActivity extends Activity {
             JSONObject queues = data.optJSONObject("queues");
             if (queues == null) return false;
             Iterator<String> it = queues.keys();
+            int n = queues.length();
             boolean first = true;
             while (it.hasNext()) {
                 String q = it.next();
@@ -192,7 +193,7 @@ public class MainActivity extends Activity {
                 JSONArray arr = days.getJSONObject(date).optJSONArray("cells");
                 if (arr != null) for (int i = 0; i < arr.length(); i++) cells.add(arr.optInt(i));
 
-                body.addView(row(q, cells, date, first));
+                body.addView(row(q, cells, date, first, barHeight(n)));
                 first = false;
             }
             // шкала годин одна, під останньою смугою
@@ -204,7 +205,7 @@ public class MainActivity extends Activity {
     }
 
     /** Рядок: підпис черги в перших клітинках + смуга на решту ширини. */
-    private View row(String q, List<Integer> cells, String date, boolean first) {
+    private View row(String q, List<Integer> cells, String date, boolean first, int barH) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -223,7 +224,7 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT));
 
         DayBarView bar = new DayBarView(this, cells, isToday(date));
-        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(0, dp(96), 1f);
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(0, barH, 1f);
         row.addView(bar, blp);
         return row;
     }
@@ -281,6 +282,16 @@ public class MainActivity extends Activity {
     private boolean isToday(String day) {
         String t = new SimpleDateFormat("dd-MM-yyyy", Locale.US).format(new Date());
         return t.equals(day);
+    }
+
+
+    /** Висота смуги: ділимо доступну висоту екрана на кількість черг (не менше 92dp). */
+    private int barHeight(int n) {
+        int screen = getResources().getDisplayMetrics().heightPixels;
+        int fixed = dp(24 + 38 + 30);            // відступи + заголовок + шкала
+        int gaps = dp(8) * Math.max(0, n - 1);
+        int h = (screen - fixed - gaps) / Math.max(1, n);
+        return Math.max(dp(92), h);
     }
 
     private int dp(int v) {
