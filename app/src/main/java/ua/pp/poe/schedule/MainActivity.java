@@ -51,8 +51,14 @@ public class MainActivity extends Activity {
     private static final String NTFY_ANS = "https://ntfy.sh/poe-a-f73318596131457f66/json?poll=1&since=180s";
     private static final String NTFY_TOK = "7722020de052af64d8cd7615";
 
-    private static final String URL_JSON =
-            "https://raw.githubusercontent.com/pragmatrans/poe-data/main/schedule.json";
+    // Ланцюг джерел: своє (CF-тунель, без VPN) → публічне дзеркало.
+    private static final String[] SOURCES = {
+            "https://poe.hermes-vps.pp.ua/",
+            "https://raw.githubusercontent.com/pragmatrans/poe-data/main/schedule.json"
+    };
+    private static final String[] SOURCE_NAMES = {"наше", "хмара"};
+    private static final int NET_TIMEOUT = 4000;      // короткий: мертвий шлях відкидаємо швидко
+    private static final String PREF = "poe-cache";
     private static final long REFRESH_MS = 15 * 60 * 1000L;
 
 
@@ -142,13 +148,20 @@ public class MainActivity extends Activity {
                 String err = null;
                 String bodyText = null;
                 String source = null;
-                if (bodyText == null) {
+                for (int i = 0; i < SOURCES.length && bodyText == null; i++) {
                     try {
-                        bodyText = get(URL_JSON, 15000);   // 2) запасний шлях — хмара
-                        source = "хмара";
+                        bodyText = get(SOURCES[i], NET_TIMEOUT);
+                        source = SOURCE_NAMES[i];
                     } catch (Exception e) {
                         err = e.getClass().getSimpleName();
                     }
+                }
+                if (bodyText != null) {
+                    saveCache(bodyText);
+                } else {
+                    // усі шляхи мертві — показуємо останні відомі дані, а не чорний екран
+                    String[] cached = loadCache();
+                    if (cached != null) { bodyText = cached[0]; source = "кеш " + cached[1]; err = null; }
                 }
                 final String fErr = err;
                 final String fBody = bodyText;
@@ -234,11 +247,30 @@ public class MainActivity extends Activity {
         return out.toString("UTF-8");
     }
 
+    /** Останній вдалий JSON + час — щоб було що показати при повній відмові мережі. */
+    private void saveCache(String body) {
+        getSharedPreferences(PREF, MODE_PRIVATE).edit()
+                .putString("json", body)
+                .putLong("ts", System.currentTimeMillis())
+                .apply();
+    }
+
+    /** @return {json, "HH:mm"} або null. */
+    private String[] loadCache() {
+        android.content.SharedPreferences p = getSharedPreferences(PREF, MODE_PRIVATE);
+        String json = p.getString("json", null);
+        if (json == null) return null;
+        long ts = p.getLong("ts", 0);
+        String time = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.UK)
+                .format(new java.util.Date(ts));
+        return new String[]{json, time};
+    }
+
     /** Один GET із таймаутом; кидає виняток, якщо не 200. */
     private String get(String url, int timeoutMs) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(timeoutMs);
-        c.setReadTimeout(timeoutMs + 8000);
+        c.setReadTimeout(timeoutMs + 1500);
         c.setRequestProperty("Cache-Control", "no-cache");
         BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
         StringBuilder sb = new StringBuilder();
